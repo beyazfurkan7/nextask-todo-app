@@ -5,6 +5,8 @@
         </h2>
     </x-slot>
 
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+
     <div x-data="{ toastOpen: false, toastMessage: '', toastType: 'success' }" 
          @form-submitted.window="toastMessage = $event.detail; toastType = 'success'; toastOpen = true; setTimeout(() => toastOpen = false, 3000)">
         
@@ -50,15 +52,15 @@
                 <div class="mb-8 flex flex-col sm:flex-row gap-4 items-center justify-between bg-white p-3 rounded-2xl shadow-sm border border-slate-200">
                     
                     <div class="flex gap-1 bg-slate-100/50 p-1 rounded-xl w-full sm:w-auto">
-                        <a href="{{ route('dashboard', ['filter' => 'all', 'sort' => request('sort', 'date')]) }}" 
+                        <a href="{{ route('dashboard', ['filter' => 'all', 'sort' => request('sort', 'manual')]) }}" 
                            class="flex-1 text-center sm:flex-none px-4 py-1.5 rounded-lg text-sm font-medium transition-colors {{ request('filter', 'all') === 'all' ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50' }}">
                            All
                         </a>
-                        <a href="{{ route('dashboard', ['filter' => 'active', 'sort' => request('sort', 'date')]) }}" 
+                        <a href="{{ route('dashboard', ['filter' => 'active', 'sort' => request('sort', 'manual')]) }}" 
                            class="flex-1 text-center sm:flex-none px-4 py-1.5 rounded-lg text-sm font-medium transition-colors {{ request('filter') === 'active' ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50' }}">
                            Active
                         </a>
-                        <a href="{{ route('dashboard', ['filter' => 'completed', 'sort' => request('sort', 'date')]) }}" 
+                        <a href="{{ route('dashboard', ['filter' => 'completed', 'sort' => request('sort', 'manual')]) }}" 
                            class="flex-1 text-center sm:flex-none px-4 py-1.5 rounded-lg text-sm font-medium transition-colors {{ request('filter') === 'completed' ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50' }}">
                            Completed
                         </a>
@@ -67,8 +69,12 @@
                     <div class="flex items-center gap-3 w-full sm:w-auto px-2">
                         <span class="text-sm font-semibold text-slate-400">Sort by:</span>
                         <div class="flex gap-1 bg-slate-100/50 p-1 rounded-xl w-full sm:w-auto">
+                            <a href="{{ route('dashboard', ['filter' => request('filter', 'all'), 'sort' => 'manual']) }}" 
+                               class="flex-1 text-center sm:flex-none px-4 py-1.5 rounded-lg text-sm font-medium transition-colors {{ request('sort', 'manual') === 'manual' ? 'bg-white text-slate-800 shadow-sm border border-slate-200/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50' }}">
+                               Manual
+                            </a>
                             <a href="{{ route('dashboard', ['filter' => request('filter', 'all'), 'sort' => 'date']) }}" 
-                               class="flex-1 text-center sm:flex-none px-4 py-1.5 rounded-lg text-sm font-medium transition-colors {{ request('sort', 'date') === 'date' ? 'bg-white text-slate-800 shadow-sm border border-slate-200/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50' }}">
+                               class="flex-1 text-center sm:flex-none px-4 py-1.5 rounded-lg text-sm font-medium transition-colors {{ request('sort') === 'date' ? 'bg-white text-slate-800 shadow-sm border border-slate-200/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50' }}">
                                Date
                             </a>
                             <a href="{{ route('dashboard', ['filter' => request('filter', 'all'), 'sort' => 'priority']) }}" 
@@ -121,7 +127,6 @@
 
                                 <form x-show="editProject" action="{{ route('projects.update', $project->id) }}" method="POST" class="flex flex-col gap-3 w-full" style="display: none;" @submit="$dispatch('form-submitted', 'Updating project...')">
                                     @csrf @method('PUT')
-                                    
                                     <div class="flex gap-2 items-center w-full">
                                         <input type="text" name="title" value="{{ $project->title }}" 
                                                class="flex-1 border-slate-200 bg-white/80 rounded-lg focus:border-indigo-500 focus:ring-indigo-500 text-sm px-3 py-1.5" required>
@@ -146,17 +151,49 @@
                             </div>
                             
                             <div class="p-4 flex-1">
-                                <ul class="space-y-2">
+                                <ul class="space-y-2"
+                                    x-init="
+                                        Sortable.create($el, {
+                                            animation: 150,
+                                            handle: '.drag-handle',
+                                            ghostClass: 'opacity-40',
+                                            onEnd: function(evt) {
+                                                let itemEls = Array.from($el.children);
+                                                let taskIds = itemEls.map(el => el.getAttribute('data-id')).filter(id => id);
+                                                
+                                                fetch('{{ route('tasks.reorder', $project->id) }}', {
+                                                    method: 'POST',
+                                                    headers: {
+                                                        'Content-Type': 'application/json',
+                                                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                                                    },
+                                                    body: JSON.stringify({ task_ids: taskIds })
+                                                })
+                                                .then(response => response.json())
+                                                .then(data => {
+                                                    if(data.success) {
+                                                        $dispatch('form-submitted', 'Task order saved.');
+                                                    }
+                                                });
+                                            }
+                                        });
+                                    ">
+                                    
                                     @forelse($project->tasks as $task)
-                                        <li class="w-full" x-data="{ editTask: false, deletingTask: false }" x-show="!deletingTask"
+                                        <li class="w-full bg-white/50 rounded-xl" data-id="{{ $task->id }}" x-data="{ editTask: false, deletingTask: false }" x-show="!deletingTask"
                                             x-transition:leave="transition ease-in duration-300"
                                             x-transition:leave-start="opacity-100 transform translate-x-0"
                                             x-transition:leave-end="opacity-0 transform translate-x-4">
                                             
-                                            <div x-show="!editTask" class="flex flex-col sm:flex-row sm:justify-between sm:items-center group p-3 rounded-xl border border-transparent hover:border-slate-100/50 hover:bg-white/50 transition-all duration-200 gap-2">
+                                            <div x-show="!editTask" class="flex flex-col sm:flex-row sm:justify-between sm:items-center group p-3 rounded-xl border border-transparent hover:border-slate-200 hover:bg-white transition-all duration-200 gap-2 shadow-sm">
                                                 
-                                                <div class="flex items-start gap-3">
-                                                    
+                                                <div class="flex items-start gap-2">
+                                                    <div class="drag-handle cursor-grab mt-1 text-slate-300 hover:text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                                            <path d="M7 2a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 2zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 8zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 14zm6-8a2 2 0 1 0-.001-4.001A2 2 0 0 0 13 6zm0 2a2 2 0 1 0 .001 4.001A2 2 0 0 0 13 8zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 13 14z" />
+                                                        </svg>
+                                                    </div>
+
                                                     <form action="{{ route('tasks.toggle', $task->id) }}" method="POST" class="m-0 flex items-center shrink-0 mt-0.5" @submit="$dispatch('form-submitted', 'Task status updated.')">
                                                         @csrf @method('PATCH')
                                                         <button type="submit" class="w-5 h-5 flex-shrink-0 rounded border-2 flex items-center justify-center cursor-pointer transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 
@@ -199,20 +236,20 @@
                                                 </div>
                                                 
                                                 <div class="flex items-center self-end sm:self-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 ml-8 sm:ml-0">
-                                                    <button @click="editTask = true" class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white/80 rounded-md transition-colors">
+                                                    <button @click="editTask = true" class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-md transition-colors">
                                                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                                                     </button>
                                                     <form action="{{ route('tasks.destroy', $task->id) }}" method="POST" class="m-0 flex items-center"
                                                           @submit.prevent="deletingTask = true; $dispatch('form-submitted', 'Task deleted.'); setTimeout(() => $el.submit(), 300)">
                                                         @csrf @method('DELETE')
-                                                        <button type="submit" class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-white/80 rounded-md transition-colors">
+                                                        <button type="submit" class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors">
                                                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                                         </button>
                                                     </form>
                                                 </div>
                                             </div>
 
-                                            <form x-show="editTask" action="{{ route('tasks.update', $task->id) }}" method="POST" class="w-full mt-2 p-3 bg-white/70 rounded-xl border border-slate-200 shadow-sm" style="display: none;" @submit="$dispatch('form-submitted', 'Task updated.')">
+                                            <form x-show="editTask" action="{{ route('tasks.update', $task->id) }}" method="POST" class="w-full mt-2 p-3 bg-white rounded-xl border border-slate-200 shadow-sm" style="display: none;" @submit="$dispatch('form-submitted', 'Task updated.')">
                                                 @csrf @method('PUT')
                                                 
                                                 <input type="text" name="content" value="{{ $task->content }}" placeholder="Task description..."
@@ -235,7 +272,6 @@
                                                     </div>
                                                 </div>
                                             </form>
-
                                         </li>
                                     @empty
                                         <div class="py-6 flex flex-col items-center justify-center text-center">
@@ -358,7 +394,8 @@
                                     </div>
                                 </div>
                             </template>
-                            </div>
+
+                        </div>
                     @endforeach
                 </div>
 

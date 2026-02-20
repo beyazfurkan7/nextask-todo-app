@@ -11,7 +11,7 @@ class ProjectController extends Controller
 {
     public function index(Request $request) {
         $filter = $request->get('filter', 'all'); 
-        $sort = $request->get('sort', 'date'); 
+        $sort = $request->get('sort', 'manual'); 
 
         $projects = Project::where('user_id', Auth::id())
             ->with(['tasks' => function ($query) use ($filter, $sort) {
@@ -24,8 +24,10 @@ class ProjectController extends Controller
 
                 if ($sort === 'priority') {
                     $query->orderByRaw("CASE WHEN priority = 'high' THEN 1 WHEN priority = 'medium' THEN 2 WHEN priority = 'low' THEN 3 ELSE 4 END ASC");
-                } else {
+                } elseif ($sort === 'date') {
                     $query->orderByRaw("due_date IS NULL ASC, due_date ASC");
+                } else {
+                    $query->orderBy('position', 'asc')->orderBy('id', 'asc');
                 }
                 
             }])->get();
@@ -100,6 +102,20 @@ class ProjectController extends Controller
         $task->update(['is_completed' => !$task->is_completed]);
         
         return back();
+    }
+    //DRAG & DROP REORDER API 
+    public function reorderTasks(Request $request, Project $project) {
+        if($project->user_id !== Auth::id()) abort(403);
+        
+        if($request->task_ids && is_array($request->task_ids)) {
+            foreach($request->task_ids as $index => $taskId) {
+                Task::where('id', $taskId)
+                    ->where('project_id', $project->id)
+                    ->update(['position' => $index]);
+            }
+        }
+        
+        return response()->json(['success' => true]);
     }
 }
 
