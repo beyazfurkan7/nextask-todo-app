@@ -14,6 +14,10 @@ class ProjectController extends Controller
         $sort = $request->get('sort', 'manual'); 
 
         $projects = Project::where('user_id', Auth::id())
+            ->withCount('tasks') 
+            ->withCount(['tasks as completed_tasks_count' => function ($query) {
+                $query->where('is_completed', true); 
+            }])
             ->with(['tasks' => function ($query) use ($filter, $sort) {
                 if ($filter === 'active') $query->where('is_completed', false);
                 elseif ($filter === 'completed') $query->where('is_completed', true);

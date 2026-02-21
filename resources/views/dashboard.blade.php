@@ -26,6 +26,8 @@
                         this.toastOpen = false;
                         this.deletedTaskId = null;
                         setTimeout(() => { $dispatch('form-submitted', 'Task restored successfully!'); }, 300);
+                        // İşlem sonrası rakamların yenilenmesi için ufak bir gecikme ile sayfayı tazele
+                        setTimeout(() => { window.location.reload(); }, 1000);
                     }
                 });
             }
@@ -117,14 +119,32 @@
                              x-transition:leave-start="opacity-100 transform scale-100"
                              x-transition:leave-end="opacity-0 transform scale-95">
                             
-                            <div class="p-5 border-b border-slate-100/50 bg-white/40 backdrop-blur-sm flex justify-between items-center group">
-                                <div x-show="!editProject" class="flex justify-between items-center w-full">
-                                    <h3 class="font-bold text-lg text-slate-800 flex items-center gap-2">{{ $project->title }}</h3>
+                            <div class="p-5 border-b border-slate-100/50 bg-white/40 backdrop-blur-sm flex flex-col relative group">
+                                <div x-show="!editProject" class="flex justify-between items-start w-full">
+                                    <div class="flex flex-col">
+                                        <h3 class="font-bold text-lg text-slate-800 flex items-center gap-2">{{ $project->title }}</h3>
+                                        <span class="text-xs font-semibold text-slate-500 mt-1">
+                                            {{ $project->completed_tasks_count }} / {{ $project->tasks_count }} tasks completed
+                                        </span>
+                                    </div>
                                     <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                                         <button @click="editProject = true" class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white/60 rounded-lg transition-colors" title="Edit"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
                                         <button @click="deleteProjectModalOpen = true" class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-white/60 rounded-lg transition-colors" title="Delete"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
                                     </div>
                                 </div>
+                                
+                                <div x-show="!editProject" class="mt-4 w-full">
+                                    @php
+                                        $percentage = $project->tasks_count > 0 ? round(($project->completed_tasks_count / $project->tasks_count) * 100) : 0;
+                                    @endphp
+                                    <div class="flex items-center gap-3">
+                                        <div class="flex-1 h-2 bg-slate-200/70 rounded-full overflow-hidden">
+                                            <div class="h-full {{ $percentage == 100 ? 'bg-green-500' : 'bg-indigo-500' }} transition-all duration-700 ease-out" style="width: {{ $percentage }}%"></div>
+                                        </div>
+                                        <span class="text-xs font-extrabold {{ $percentage == 100 ? 'text-green-600' : 'text-indigo-600' }} w-8 text-right">{{ $percentage }}%</span>
+                                    </div>
+                                </div>
+
                                 <form x-show="editProject" action="{{ route('projects.update', $project->id) }}" method="POST" class="flex flex-col gap-3 w-full" style="display: none;">
                                     @csrf @method('PUT')
                                     <div class="flex gap-2 items-center w-full">
@@ -171,6 +191,7 @@
                                             x-data="{ 
                                                 editTask: false, 
                                                 deletingTask: false,
+                                                
                                                 deleteTask() {
                                                     this.deletingTask = true;
                                                     fetch('{{ route('tasks.destroy', $task->id) }}', {
@@ -180,6 +201,8 @@
                                                     }).then(res => res.json()).then(data => {
                                                         if(data.success) {
                                                             $dispatch('task-deleted', { taskId: {{ $task->id }} });
+                                                            // İlerleme çubuğunun güncellenmesi için ufak bir gecikme ile sayfayı tazele
+                                                            setTimeout(() => { window.location.reload(); }, 1500);
                                                         }
                                                     });
                                                 }
