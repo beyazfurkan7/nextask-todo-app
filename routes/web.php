@@ -19,6 +19,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/tasks/{task}', [ProjectController::class, 'destroyTask'])->name('tasks.destroy');
     Route::patch('/tasks/{task}/toggle', [ProjectController::class, 'toggleTask'])->name('tasks.toggle');
     Route::post('/projects/{project}/tasks/reorder', [App\Http\Controllers\ProjectController::class, 'reorderTasks'])->name('tasks.reorder');
+    Route::post('/tasks/{id}/restore', [App\Http\Controllers\ProjectController::class, 'restoreTask'])->name('tasks.restore');
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');

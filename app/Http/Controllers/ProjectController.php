@@ -15,12 +15,8 @@ class ProjectController extends Controller
 
         $projects = Project::where('user_id', Auth::id())
             ->with(['tasks' => function ($query) use ($filter, $sort) {
-                
-                if ($filter === 'active') {
-                    $query->where('is_completed', false);
-                } elseif ($filter === 'completed') {
-                    $query->where('is_completed', true);
-                }
+                if ($filter === 'active') $query->where('is_completed', false);
+                elseif ($filter === 'completed') $query->where('is_completed', true);
 
                 if ($sort === 'priority') {
                     $query->orderByRaw("CASE WHEN priority = 'high' THEN 1 WHEN priority = 'medium' THEN 2 WHEN priority = 'low' THEN 3 ELSE 4 END ASC");
@@ -29,7 +25,6 @@ class ProjectController extends Controller
                 } else {
                     $query->orderBy('position', 'asc')->orderBy('id', 'asc');
                 }
-                
             }])->get();
 
         return view('dashboard', compact('projects', 'filter', 'sort'));
@@ -43,13 +38,11 @@ class ProjectController extends Controller
 
     public function storeTask(Request $request, Project $project) {
         if($project->user_id !== Auth::id()) abort(403);
-        
         $request->validate([
             'content' => 'required|string|max:255',
             'due_date' => 'nullable|date',
             'priority' => 'required|in:low,medium,high'
         ]);
-
         Task::create([
             'project_id' => $project->id, 
             'content' => $request->content,
@@ -68,13 +61,11 @@ class ProjectController extends Controller
 
     public function updateTask(Request $request, Task $task) {
         if($task->project->user_id !== Auth::id()) abort(403);
-        
         $request->validate([
             'content' => 'required|string|max:255',
             'due_date' => 'nullable|date',
             'priority' => 'required|in:low,medium,high'
         ]);
-
         $task->update([
             'content' => $request->content,
             'due_date' => $request->due_date,
@@ -89,33 +80,42 @@ class ProjectController extends Controller
         return back();
     }
 
-    public function destroyTask(Task $task) {
+    public function toggleTask(Task $task) {
         if($task->project->user_id !== Auth::id()) abort(403);
-        $task->delete();
+        $task->update(['is_completed' => !$task->is_completed]);
         return back();
     }
 
-    //TOGGLE TASK STATUS
-    public function toggleTask(Task $task) {
-        if($task->project->user_id !== Auth::id()) abort(403);
-        
-        $task->update(['is_completed' => !$task->is_completed]);
-        
-        return back();
-    }
-    //DRAG & DROP REORDER API 
     public function reorderTasks(Request $request, Project $project) {
         if($project->user_id !== Auth::id()) abort(403);
-        
         if($request->task_ids && is_array($request->task_ids)) {
             foreach($request->task_ids as $index => $taskId) {
-                Task::where('id', $taskId)
-                    ->where('project_id', $project->id)
-                    ->update(['position' => $index]);
+                Task::where('id', $taskId)->where('project_id', $project->id)->update(['position' => $index]);
             }
         }
-        
         return response()->json(['success' => true]);
+    }
+
+    public function destroyTask(Request $request, Task $task) {
+        if($task->project->user_id !== Auth::id()) abort(403);
+        $task->delete(); 
+
+        if($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => true]);
+        }
+        return back();
+    }
+
+    public function restoreTask(Request $request, $id) {
+        $task = Task::withTrashed()->findOrFail($id);
+        if($task->project->user_id !== Auth::id()) abort(403);
+        
+        $task->restore(); 
+
+        if($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => true]);
+        }
+        return back();
     }
 }
 
